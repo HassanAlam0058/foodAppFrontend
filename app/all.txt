@@ -1,0 +1,410 @@
+import { StyleSheet, Text, View, Image, TouchableOpacity, Modal, TextInput, Button, Alert, FlatList, RefreshControl, Switch } from 'react-native'
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
+import { MaterialIcons } from '@expo/vector-icons'
+
+const Index = () => {
+  const [data, setData] = useState([])
+  const [modalVisible, setModalVisible] = useState(false)
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editPrice, setEditPrice] = useState('')
+  const [addModalVisible, setAddModalVisible] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newPrice, setNewPrice] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [isGrid, setIsGrid] = useState(true)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  // State for heading editing
+  const [heading, setHeading] = useState('Haśśan Áłäm')
+  const [headingEditModalVisible, setHeadingEditModalVisible] = useState(false)
+  const [headingEditValue, setHeadingEditValue] = useState('Haśśan Áłäm')
+
+  const fetchData = () => {
+    axios
+      .get('http://172.20.10.4:8090/api/foods')
+      .then((res) => setData(res.data))
+      .catch((err) => console.log('API Error:', err))
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const onRefresh = () => {
+    setRefreshing(true)
+    axios
+      .get('http://172.20.10.4:8090/api/foods')
+      .then((res) => setData(res.data))
+      .catch((err) => console.log('API Error:', err))
+      .finally(() => setRefreshing(false))
+  }
+
+  const openEditModal = (item) => {
+    setSelectedItem(item)
+    setEditName(item.name)
+    setEditPrice(item.price.toString())
+    setModalVisible(true)
+  }
+
+  const saveEdit = () => {
+    if (!editName || !editPrice) {
+      Alert.alert('Error', 'Name and Price cannot be empty')
+      return
+    }
+
+    console.log('Updating item:', selectedItem._id, 'Name:', editName, 'Price:', editPrice)
+
+    axios
+      .put(`http://172.20.10.4:8090/api/foods/${selectedItem._id}`, {
+        name: editName,
+        price: Number(editPrice)
+      })
+      .then((res) => {
+        console.log('Update response:', res.data)
+        Alert.alert('Success', 'Item updated successfully')
+        setModalVisible(false)
+        fetchData()
+      })
+      .catch((err) => {
+        console.log('Update Error:', err)
+        Alert.alert('Error', 'Failed to update item. Check console for details.')
+      })
+  }
+
+  const renderItem = ({ item, index }) => (
+    <TouchableOpacity
+      key={item._id || index}
+      style={[styles.card, isGrid ? styles.gridCard : styles.listCard, isDarkMode && styles.cardDark]}
+      onLongPress={() => openEditModal(item)}
+    >
+      <Image
+        source={{
+          uri:
+            item.imageUrl && item.imageUrl.startsWith('http')
+              ? item.imageUrl
+              : `http://172.20.10.4:8090/uploads/${item.imageUrl}`
+        }}
+        style={styles.image}
+      />
+      <View style={styles.cardContent}>
+        <Text style={[styles.itemName, isDarkMode && styles.itemNameDark]}>{item.name}</Text>
+        <Text style={[styles.itemPrice, isDarkMode && styles.itemPriceDark]}>₹ {item.price}</Text>
+      </View>
+    </TouchableOpacity>
+  )
+
+  return (
+    <View style={[styles.container, isDarkMode ? styles.containerDark : styles.containerLight]}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          onPress={() => setIsDarkMode(!isDarkMode)}
+          onLongPress={() => {
+            setHeadingEditValue(heading)
+            setHeadingEditModalVisible(true)
+          }}
+        >
+          <Text style={[styles.heading, isDarkMode ? styles.headingDark : styles.headingLight]}>
+            {heading}
+          </Text>
+        </TouchableOpacity>
+        <Switch
+          value={isGrid}
+          onValueChange={setIsGrid}
+          trackColor={{ false: '#ccc', true: '#00a7e1' }}
+          thumbColor={isGrid ? '#fff' : '#f5f5f5'}
+          ios_backgroundColor="#3e3e3e"
+          style={styles.switchStyle}
+        />
+      </View>
+      <FlatList
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={(item, index) => item._id || index.toString()}
+        numColumns={isGrid ? 2 : 1}
+        columnWrapperStyle={isGrid ? styles.grid : null}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        key={isGrid ? 'g' : 'l'}
+      />
+
+      <Modal visible={modalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontWeight: '700', fontSize: 18, marginBottom: 10 }}>Edit Item</Text>
+            <TextInput
+              placeholder="Name"
+              value={editName}
+              onChangeText={setEditName}
+              style={styles.input}
+            />
+            <TextInput
+              placeholder="Price"
+              value={editPrice}
+              onChangeText={setEditPrice}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              <Button title="Cancel" onPress={() => setModalVisible(false)} />
+              <Button title="Save" onPress={saveEdit} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={addModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontWeight: '700', fontSize: 18, marginBottom: 10 }}>Add New Food</Text>
+            <TextInput
+              placeholder="Name"
+              value={newName}
+              onChangeText={setNewName}
+              style={styles.input}
+            />
+            <TextInput
+              placeholder="Price"
+              value={newPrice}
+              onChangeText={setNewPrice}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              <Button title="Cancel" onPress={() => setAddModalVisible(false)} />
+              <Button title="Save" onPress={() => {
+                if (!newName || !newPrice) {
+                  Alert.alert('Error', 'Name and Price cannot be empty')
+                  return
+                }
+                axios.post('http://172.20.10.4:8090/api/foods', {
+                  name: newName,
+                  price: Number(newPrice),
+                  imageUrl: 'default.png'
+                })
+                .then(() => {
+                  Alert.alert('Success', 'Food added successfully')
+                  setAddModalVisible(false)
+                  setNewName('')
+                  setNewPrice('')
+                  fetchData()
+                })
+                .catch(err => {
+                  console.log('Add Error:', err)
+                  Alert.alert('Error', 'Failed to add food')
+                })
+              }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal for editing the heading */}
+      <Modal
+        visible={headingEditModalVisible}
+        animationType="fade"
+        transparent={true}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontWeight: '700', fontSize: 18, marginBottom: 10 }}>Edit Heading</Text>
+            <TextInput
+              style={styles.input}
+              value={headingEditValue}
+              onChangeText={setHeadingEditValue}
+              placeholder="Enter heading"
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              <Button
+                title="Cancel"
+                onPress={() => setHeadingEditModalVisible(false)}
+              />
+              <Button
+                title="Save"
+                onPress={() => {
+                  setHeading(headingEditValue)
+                  setHeadingEditModalVisible(false)
+                  // If you want to update to backend, you can do it here with Axios.
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  )
+}
+
+export default Index
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: 40,
+    paddingHorizontal: 20,
+  },
+  containerLight: {
+    backgroundColor: 'white',
+  },
+  containerDark: {
+    backgroundColor: '#121212',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingTop: 5,
+    backgroundColor: 'transparent',
+  },
+  switchStyle: {
+    marginLeft: 12,
+    marginTop: 20,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#00a7e1',
+    overflow: 'hidden',
+  },
+  toggleButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 12,
+  },
+  toggleActive: {
+    backgroundColor: '#00a7e1',
+  },
+  toggleInactive: {
+    backgroundColor: '#fff',
+  },
+  toggleSingleButton: {
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#00a7e1',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleText: {
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  toggleTextActive: {
+    color: '#fff',
+  },
+  toggleTextInactive: {
+    color: '#00a7e1',
+  },
+  heading: {
+    fontSize: 22,
+    fontWeight: '900',
+    paddingTop: 20,
+    backgroundColor: 'transparent',
+  },
+  headingLight: {
+    color: '#000',
+  },
+  headingDark: {
+    color: '#fff',
+  },
+  grid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  card: {
+    marginBottom: 15,
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  cardDark: {
+    backgroundColor: '#1e1e1e',
+    borderColor: '#333',
+  },
+  gridCard: {
+    width: '48%',
+  },
+  listCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  image: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    marginBottom: 8
+  },
+  cardContent: {
+    flex: 1,
+    marginLeft: 15,
+    alignItems: 'flex-start',
+    justifyContent: 'center'
+  },
+  itemName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'black',
+  },
+  itemNameDark: {
+    color: '#eee',
+  },
+  itemPrice: {
+    fontSize: 16,
+    marginTop: 4,
+    fontWeight: '500',
+    color: 'green'
+  },
+  itemPriceDark: {
+    color: '#90ee90',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 20
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10
+  },
+  cartContainer: {
+    flex: 1,
+    backgroundColor: '#ed7676ff', // replace with your desired color
+    padding: 20
+  }
+})
